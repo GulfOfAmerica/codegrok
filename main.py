@@ -135,14 +135,22 @@ if __name__ == '__main__':
     if not template:
         raise HTTPException(status_code=400, detail="Unsupported project type")
     
-    project_dir = os.path.join(SRC_ROOT, project.name)
+    project_dir = os.path.normpath(os.path.join(SRC_ROOT, project.name))
+    if not project_dir.startswith(SRC_ROOT):
+        raise HTTPException(status_code=400, detail="Invalid project name")
     os.makedirs(project_dir, exist_ok=True)
     
     for component in [template["frontend"], template["backend"]]:
-        comp_dir = os.path.join(project_dir, component["path"])
+        comp_dir = os.path.normpath(os.path.join(project_dir, component["path"]))
+        if not comp_dir.startswith(project_dir):
+            raise HTTPException(status_code=400, detail="Invalid component path")
         os.makedirs(comp_dir, exist_ok=True)
         for file_path, content in component["files"].items():
-            with open(os.path.join(comp_dir, file_path), "w") as f:
+            sanitized_file_path = os.path.normpath(file_path)
+            if not sanitized_file_path or ".." in sanitized_file_path or sanitized_file_path.startswith("/"):
+                raise HTTPException(status_code=400, detail="Invalid file path")
+            full_file_path = os.path.join(comp_dir, sanitized_file_path)
+            with open(full_file_path, "w") as f:
                 f.write(content.format(project=project))
     
     return {"message": f"Generated {project.name} at {project_dir}"}
